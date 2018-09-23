@@ -88,11 +88,32 @@ int main(int argc, char const *argv[]){
         ssize_t len;
 
         message client;
+        uint16_t opcode; 
 
         if ((len = recvfrom(sockfd, &client, sizeof(&client), 0, (struct sockaddr *) &client_sock, &cli_len)) < 0) {
                perror("Connection failed.");
         }
 
+        opcode = ntohs(client.opcode); 
+
+        if(client.opcode == 01 || client.opcode == 02){
+        	if(fork() == 0){
+        		if (client.opcode == 01){
+        			RRQ(&message, len, &cli_len, cli_len); 
+        		}
+        		else if(client.opcode == 02){
+        			WRQ(&message, len, &cli_len, cli_len); 
+        		}
+        	}
+        	else{ //parent
+        		continue;
+        	}
+        }
+        else{
+        	perror("Error in the code!\n")
+        }
 
 	}
+
+	return 0;
 }
