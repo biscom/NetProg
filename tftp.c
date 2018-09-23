@@ -10,7 +10,7 @@
 int main(int argc, char const *argv[]){
 	
 	int sockfd, n;
-	struct sockaddr_in addr, newsockfd;
+	struct sockaddr_in server_sock, newsockfd;
 
 	// Creating socket file descriptor 
     if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
@@ -18,21 +18,27 @@ int main(int argc, char const *argv[]){
         exit(EXIT_FAILURE); 
     } 
 
-	memset(&addr, 0, sizeof addr);
-	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = INADDR_ANY;
-	addr.sin_port = 0;
-	if ((bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) == -1)){ 
+	memset(&server_sock, 0, sizeof server_sock);
+	server_sock.sin_family = AF_INET;
+	server_sock.sin_addr.s_addr = INADDR_ANY;
+	server_sock.sin_port = 0;
+	if ((bind(sockfd, (struct sockaddr *) &server_sock, sizeof(server_sock)) == -1)){ 
 		close(sockfd);
     	perror("Error on binding");
 	}
 
-    /*
-    while (1) {
-    	
-	}
-	*/
-	unsigned int len = sizeof(addr);
-	int sock_name = getsockname(sockfd, (struct sockaddr *) &addr, &len);
+	unsigned int server_len = sizeof(server_sock);
+	int sock_name = getsockname(sockfd, (struct sockaddr *) &server_sock, &server_len);
 	printf("Port Number: %d\n", sock_name);
+
+
+    while (1) {
+    	struct sockaddr_in client_sock;
+        socklen_t slen = sizeof(client_sock);
+        ssize_t len;
+
+        if ((len = recvfrom(sockfd, &message, &client_sock, &slen)) < 0) {
+               continue;
+          }
+	}
 }
