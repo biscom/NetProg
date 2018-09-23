@@ -37,19 +37,18 @@ typedef union {
 } message;
 
 void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	continue; 
+
 }
 
 void WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	continue; 
 }
 
 void DATA(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	continue; 
+
 }
 
 void ACK(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	continue; 
+
 }
 
 void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
@@ -133,10 +132,10 @@ int main(int argc, char const *argv[]){
         if(client.opcode == 01 || client.opcode == 02){
         	if(fork() == 0){
         		if (client.opcode == 01){
-        			RRQ(&message, len, &cli_len, cli_len); 
+        			RRQ(&client, len, &client_sock, &cli_len); 
         		}
         		else if(client.opcode == 02){
-        			WRQ(&message, len, &cli_len, cli_len); 
+        			WRQ(&client, len, &client_sock, &cli_len); 
         		}
         	}
         	else{ //parent
@@ -144,7 +143,7 @@ int main(int argc, char const *argv[]){
         	}
         }
         else{
-        	perror("Error in the code!\n")
+        	perror("Error in the code!\n");
         }
 
 	}
