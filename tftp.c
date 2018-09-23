@@ -6,6 +6,25 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+void RRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	continue; 
+}
+
+void WRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	continue; 
+}
+
+void DATA(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	continue; 
+}
+
+void ACK(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	continue; 
+}
+
+void ERROR(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	continue; 
+}
 
 int main(int argc, char const *argv[]){
 	
