@@ -1,10 +1,38 @@
-#include "../unpv13e/lib/unp.h"
+#include "unpv13e/lib/unp.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+
+#define BUFSIZE 1024
+
+typedef union {
+
+	struct{
+		uint16_t opcode;
+		uint8_t filename_mode[512];
+	} request;
+
+	struct{
+		uint16_t opcode;
+		uint16_t block_num;
+		uint8_t data;
+	} data;
+
+	struct{
+		uint16_t opcode;
+		uint16_t block_num;
+	} ack;
+
+	struct{
+		uint16_t opcode;
+		uint16_t error_code;
+		uint8_t errmsg[512];
+	} error;
+
+} message;
 
 void RRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	continue; 
@@ -30,6 +58,7 @@ int main(int argc, char const *argv[]){
 	
 	int sockfd, n;
 	struct sockaddr_in server_sock, newsockfd;
+	char buf[BUFSIZE]; /* message buf */
 
 	// Creating socket file descriptor 
     if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
@@ -53,11 +82,13 @@ int main(int argc, char const *argv[]){
 
     while (1) {
     	struct sockaddr_in client_sock;
-        socklen_t slen = sizeof(client_sock);
+        socklen_t cli_len = sizeof(client_sock);
         ssize_t len;
 
-        if ((len = recvfrom(sockfd, &message, &client_sock, &slen)) < 0) {
-               continue;
+        message client;
+
+        if ((len = recvfrom(sockfd, &client, sizeof(&client), 0, (struct sockaddr *) &client_sock, &cli_len)) < 0) {
+               perror("Connection failed.");
           }
 	}
 }
