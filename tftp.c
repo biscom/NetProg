@@ -36,24 +36,58 @@ typedef union {
 
 } message;
 
-void RRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	continue; 
 }
 
-void WRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	continue; 
 }
 
-void DATA(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void DATA(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	continue; 
 }
 
-void ACK(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void ACK(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	continue; 
 }
 
-void ERROR(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	continue; 
+void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	message msg; 	
+
+	msg.opcode = 05
+	char* err_msg[512]; 
+	if(err == 0){
+		err_msg = "Not defined, see error message.\n\0"; 
+	}
+	else if(err == 1){
+		err_msg = "File not found.\n\0"; 
+	}
+	else if(err == 2){
+		err_msg = "Access violation.\n\0"; 
+	}
+	else if(err == 3){
+		err_msg = "Disk full or allocation exceeded.\n\0"; 
+	}
+	else if(err == 4){
+		err_msg = "Illegal FTP Operation.\n\0"; 
+	}
+	else if(err == 5){
+		err_msg = "Unknown transfer ID.\n\0"; 
+	}
+	else if(err == 6){
+		err_msg = "File already exists.\n\0"; 
+	}
+	else if(err = 7){
+		err_msg = "No such user.\n\0".
+	}
+	strcpy(m.error.err_msg, err_msg); 
+	msg.error.error_code = err;
+	msg.opcode = htons(05)
+
+	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, cli_len) <0){
+		perror("sendto() failed"); 
+	}
 }
 
 int main(int argc, char const *argv[]){
