@@ -10,6 +10,8 @@
 
 typedef union {
 
+	uint16_t opcode;
+
 	struct{
 		uint16_t opcode;
 		uint8_t filename_mode[512];
@@ -89,6 +91,8 @@ int main(int argc, char const *argv[]){
 
         if ((len = recvfrom(sockfd, &client, sizeof(&client), 0, (struct sockaddr *) &client_sock, &cli_len)) < 0) {
                perror("Connection failed.");
-          }
+        }
+
+
 	}
 }
