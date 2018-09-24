@@ -13,6 +13,25 @@
 
 #define BUFSIZE 1024
 
+//credits to https://codeforwin.org/2018/03/c-program-check-file-or-directory-exists-not.html
+/**
+ * Function to check whether a file exists or not using
+ * stat() function. It returns 1 if file exists at 
+ * given path otherwise returns 0. Modified to use lstat instead
+ */
+int fileExists(const char *path)
+{
+    struct stat stats;
+
+    lstat(path, &stats);
+
+    // Check for file existence
+    if (stats.st_mode & F_OK)
+        return 1;
+
+    return 0;
+}
+
 typedef union {
 
 	uint16_t opcode;
@@ -41,8 +60,18 @@ typedef union {
 
 } message;
 
-void ACK(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+int ACK(int sock, message *msg, ssize_t len, uint16_t block_num, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	//this function returns 1 upon sending, 0 otherwise
+	message msg; 
+	msg.ack.block_num = block_num; 
+	msg.opcode = htons(block_num); 
 
+	if(sendto(sock, &msg, sizeof(&msg) + 1, 0, (struct sockaddr*) cli_sock, cli_len) < 0){
+		perror("sendto failed!\n"); 
+		return 0;
+	}
+
+	return 1; 
 }
 
 void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
@@ -67,7 +96,7 @@ void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli
 void WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 }
 
-void DATA(message *msg, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void DATA(int sock, message *msg, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	message msg; 
 
 	memcpy(msg.data.data_body, data_body, sizeof(data_body));
@@ -75,7 +104,7 @@ void DATA(message *msg, ssize_t len, uint16_t block_num,  uint8_t *data_body, st
 	msg.opcode = htons(03); 
 	
 	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, cli_len) <0){
-		perror("sendto() failed"); 
+		perror("sendto() failed\n"); 
 	}
 }
 
@@ -130,13 +159,14 @@ void chld_handler(message *msg, ssize_t len, struct sockaddr_in *cli_sock, sockl
         exit(1);
     } //check filename
 
-     if() {
+     //TODO: use lstat to implement this
+    //TA in office hours said we only need to care about filenames, not whole directories
+     if(!fileExists(filename)) {
           printf("%s.%u: filename outside base directory\n",
                  inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
           ERROR();
           exit(1);
      } // file not in directory 
-     //TODO: use lstat to implement this
 
     printf("%s.%u: request ready: %s '%s' %s\n", 
         inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
