@@ -81,16 +81,71 @@ void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli
 	int c;
 
 	ACK(msg, block_number, cli_sock, cli_len);
-          
+
 	if (c < 0) {
-	   printf("%s.%u: transfer killed\n",
-	          inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-	   exit(1);
+		printf("%s.%u: transfer killed\n",
+			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+		exit(1);
 	}
 
 	while(handle){
+		ssize_t pkt = recvfrom();
+
+		if (pkt >= 0 && pkt < 4) {
+			printf("%s.%u: invalid message received\n",
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+			ERROR();
+			exit(1);
+		}
+
+		pkt = ACK(msg, block_number, cli_sock, cli_len);
+
+		if (pkt < 0) {
+			printf("%s.%u: transfer killed\n",
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+			exit(1);
+		}
+
+		block_number++;
+
+		if (ntohs(msg->opcode) == 05)  {
+			printf("%s.%u: error message: %u %s\n",
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
+				ntohs(msg->error.error_code), msg->error.errmsg);
+			exit(1);
+		}
+
+		if (ntohs(msg->opcode) != 03)  {
+			printf("%s.%u: invalid message during transfer\n",
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+			ERROR();
+			exit(1);
+		}
+
+		if (ntohs(msg->ack.block_num) != block_number) {
+			printf("%s.%u: invalid block number\n", 
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+			ERROR();
+			exit(1);
+		}
+
+		pkt = DATA();
+
+		if (pkt < 0) {
+			perror("server: DATA()");
+			exit(1);
+		}
+
+		pkt = ACK(msg, block_number, cli_sock, cli_len);
+
+		if (pkt < 0) {
+			printf("%s.%u: transfer killed\n",
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+			exit(1);
+		}
 
 	}
+
 }
 
 void WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
@@ -149,14 +204,14 @@ void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen
 void chld_handler(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	char* filename;
 	strcpy(filename,(char *)msg->request.filename_mode);
-    char* end;
-    end = &filename[len - 2 - 1];
+	char* end;
+	end = &filename[len - 2 - 1];
 
-    if (*end != '\0') {
-        printf("%s.%u: invalid filename\n",
-        	inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-        ERROR();
-        exit(1);
+	if (*end != '\0') {
+		printf("%s.%u: invalid filename\n",
+			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+		ERROR();
+		exit(1);
     } //check filename
 
      //TODO: use lstat to implement this
@@ -166,77 +221,78 @@ void chld_handler(message *msg, ssize_t len, struct sockaddr_in *cli_sock, sockl
                  inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
           ERROR();
           exit(1);
+
      } // file not in directory 
 
-    printf("%s.%u: request ready: %s '%s' %s\n", 
-        inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
-        ntohs(msg->opcode) == 01 ? "get" : "put", filename, "octet");
+     printf("%s.%u: request ready: %s '%s' %s\n", 
+     	inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
+     	ntohs(msg->opcode) == 01 ? "get" : "put", filename, "octet");
 
-	if (client.opcode == 01){
-        RRQ(*msg, len, *cli_sock, *cli_len); 
-    } else if(client.opcode == 02){
-        WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len); 
-    }
-}
+     if (client.opcode == 01){
+     	RRQ(*msg, len, *cli_sock, *cli_len); 
+     } else if(client.opcode == 02){
+     	WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len); 
+     }
+ }
 
-int main(int argc, char const *argv[]){
-	
-	int sockfd, newsockfd;
-	struct sockaddr_in server_sock;
+ int main(int argc, char const *argv[]){
+
+ 	int sockfd, newsockfd;
+ 	struct sockaddr_in server_sock;
 	char buf[BUFSIZE]; /* message buf */
 
 	// Creating socket file descriptor 
-    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-        perror("socket creation failed"); 
-        exit(EXIT_FAILURE); 
-    } 
+ 	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+ 		perror("socket creation failed"); 
+ 		exit(EXIT_FAILURE); 
+ 	} 
 
-	memset(&server_sock, 0, sizeof server_sock);
-	server_sock.sin_family = AF_INET;
-	server_sock.sin_addr.s_addr = INADDR_ANY;
-	server_sock.sin_port = 0;
-	if ((bind(sockfd, (struct sockaddr *) &server_sock, sizeof(server_sock)) == -1)){ 
-		close(sockfd);
-    	perror("Error on binding");
-	}
+ 	memset(&server_sock, 0, sizeof server_sock);
+ 	server_sock.sin_family = AF_INET;
+ 	server_sock.sin_addr.s_addr = INADDR_ANY;
+ 	server_sock.sin_port = 0;
+ 	if ((bind(sockfd, (struct sockaddr *) &server_sock, sizeof(server_sock)) == -1)){ 
+ 		close(sockfd);
+ 		perror("Error on binding");
+ 	}
 
-	unsigned int server_len = sizeof(server_sock);
-	int sock_name = getsockname(sockfd, (struct sockaddr *) &server_sock, &server_len);
-	printf("Port Number: %d\n", sock_name);
+ 	unsigned int server_len = sizeof(server_sock);
+ 	int sock_name = getsockname(sockfd, (struct sockaddr *) &server_sock, &server_len);
+ 	printf("Port Number: %d\n", sock_name);
 
 
-    while (1) {
-    	struct sockaddr_in client_sock;
-        socklen_t cli_len = sizeof(client_sock);
-        ssize_t len;
+ 	while (1) {
+ 		struct sockaddr_in client_sock;
+ 		socklen_t cli_len = sizeof(client_sock);
+ 		ssize_t len;
 
-        message client;
-        uint16_t opcode; 
+ 		message client;
+ 		uint16_t opcode; 
 
-        if ((len = recvfrom(sockfd, &client, sizeof(&client), 0, (struct sockaddr *) &client_sock, &cli_len)) < 0) {
-               perror("Connection failed.");
-        }
+ 		if ((len = recvfrom(sockfd, &client, sizeof(&client), 0, (struct sockaddr *) &client_sock, &cli_len)) < 0) {
+ 			perror("Connection failed.");
+ 		}
 
-        opcode = ntohs(client.opcode); 
+ 		opcode = ntohs(client.opcode); 
 
-        if(client.opcode == 01 || client.opcode == 02){
-        	if(fork() == 0){
-        		if ( (newsockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-        			perror("socket creation failed"); 
-        			close(newsockfd); 
-    			} 
+ 		if(client.opcode == 01 || client.opcode == 02){
+ 			if(fork() == 0){
+ 				if ( (newsockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+ 					perror("socket creation failed"); 
+ 					close(newsockfd); 
+ 				} 
 
-    			memset(&server_sock, 0, sizeof server_sock);
-				server_sock.sin_family = AF_INET;
-				server_sock.sin_addr.s_addr = INADDR_ANY;
-				server_sock.sin_port = 0;
+ 				memset(&server_sock, 0, sizeof server_sock);
+ 				server_sock.sin_family = AF_INET;
+ 				server_sock.sin_addr.s_addr = INADDR_ANY;
+ 				server_sock.sin_port = 0;
 
-				if ((bind(newsockfd, (struct sockaddr *) &client_sock, sizeof(client_sock)) == -1)){ 
-					close(newsockfd);
-    				perror("Error on binding");
-				}
+ 				if ((bind(newsockfd, (struct sockaddr *) &client_sock, sizeof(client_sock)) == -1)){ 
+ 					close(newsockfd);
+ 					perror("Error on binding");
+ 				}
 
-        	}
+ 			}
         	else{ //parent
         		continue;
         	}
@@ -245,7 +301,7 @@ int main(int argc, char const *argv[]){
         	perror("Error in the code!\n");
         }
 
-	}
+    }
 
-	return 0;
+    return 0;
 }
