@@ -36,7 +36,6 @@ typedef union {
 
 } message;
 
-<<<<<<< HEAD
 void RRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	 uint16_t block_number = 0;
 	 int countdown;
@@ -45,17 +44,21 @@ void RRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_l
 	 while(handle){
 
 	 }
-=======
-void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-
->>>>>>> ce5a45cf0d32ed4b1955cf60fe9bf651cb6d109b
 }
 
 void WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 }
 
-void DATA(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void DATA(message *msg, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	message msg; 
 
+	memcpy(msg.data.data_body, data_body, sizeof(data_body));
+	m.data.block_num = block_num 
+	msg.opcode = htons(03); 
+	
+	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, cli_len) <0){
+		perror("sendto() failed"); 
+	}
 }
 
 void ACK(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
