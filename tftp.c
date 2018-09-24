@@ -5,6 +5,11 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <errno.h>
+#include <ctype.h>
+#include <string.h>
 
 #define BUFSIZE 1024
 
@@ -36,20 +41,29 @@ typedef union {
 
 } message;
 
-<<<<<<< HEAD
-void RRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+
+void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	 uint16_t block_number = 0;
 	 int countdown;
 	 int handle = 1;
 
+	 char* filename;
+	 strcpy(filename,(char *)msg->request.filename_mode);
+     char* end;
+     end = &filename[len - 2 - 1];
+
+     if (*end != '\0') {
+          printf("%s.%u: invalid filename\n",
+                 inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+          ERROR();
+          exit(1);
+     }
+
 	 while(handle){
 
 	 }
-=======
-void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 
->>>>>>> ce5a45cf0d32ed4b1955cf60fe9bf651cb6d109b
-}
+	 
 
 void WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 }
@@ -152,7 +166,7 @@ int main(int argc, char const *argv[]){
 				server_sock.sin_addr.s_addr = INADDR_ANY;
 				server_sock.sin_port = 0;
 
-				if ((bind(newsockfd, (struct sockaddr *) &server_sock, sizeof(server_sock)) == -1)){ 
+				if ((bind(newsockfd, (struct sockaddr *) &client_sock, sizeof(client_sock)) == -1)){ 
 					close(newsockfd);
     				perror("Error on binding");
 				}
