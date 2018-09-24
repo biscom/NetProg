@@ -41,8 +41,12 @@ typedef union {
 
 } message;
 
+<<<<<<< HEAD
 
 void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+=======
+void RRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+>>>>>>> 6caae9d030d72bd506094072d3232aa2426184a3
 	 uint16_t block_number = 0;
 	 int countdown;
 	 int handle = 1;
@@ -62,14 +66,26 @@ void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli
 	 while(handle){
 
 	 }
+<<<<<<< HEAD
 
 	 
+=======
+}
+>>>>>>> 6caae9d030d72bd506094072d3232aa2426184a3
 
 void WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 }
 
-void DATA(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void DATA(message *msg, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	message msg; 
 
+	memcpy(msg.data.data_body, data_body, sizeof(data_body));
+	m.data.block_num = block_num 
+	msg.opcode = htons(03); 
+	
+	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, cli_len) <0){
+		perror("sendto() failed"); 
+	}
 }
 
 void ACK(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
