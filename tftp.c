@@ -37,7 +37,13 @@ typedef union {
 } message;
 
 void RRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	 
+	 uint16_t block_number = 0;
+	 int countdown;
+	 int handle = 1;
+
+	 while(handle){
+
+	 }
 }
 
 void WRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
@@ -58,8 +64,8 @@ void ERROR(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli
 
 int main(int argc, char const *argv[]){
 	
-	int sockfd, n;
-	struct sockaddr_in server_sock, newsockfd;
+	int sockfd, newsockfd;
+	struct sockaddr_in server_sock;
 	char buf[BUFSIZE]; /* message buf */
 
 	// Creating socket file descriptor 
@@ -98,6 +104,21 @@ int main(int argc, char const *argv[]){
 
         if(client.opcode == 01 || client.opcode == 02){
         	if(fork() == 0){
+        		if ( (newsockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        			perror("socket creation failed"); 
+        			close(newsockfd); 
+    			} 
+
+    			memset(&server_sock, 0, sizeof server_sock);
+				server_sock.sin_family = AF_INET;
+				server_sock.sin_addr.s_addr = INADDR_ANY;
+				server_sock.sin_port = 0;
+
+				if ((bind(newsockfd, (struct sockaddr *) &server_sock, sizeof(server_sock)) == -1)){ 
+					close(newsockfd);
+    				perror("Error on binding");
+				}
+
         		if (client.opcode == 01){
         			RRQ(&client, len, &client_sock, &cli_len); 
         		}
