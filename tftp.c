@@ -41,37 +41,28 @@ typedef union {
 
 } message;
 
-<<<<<<< HEAD
+void ACK(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+
+}
 
 void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-=======
-void RRQ(message *m, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
->>>>>>> 6caae9d030d72bd506094072d3232aa2426184a3
-	 uint16_t block_number = 0;
-	 int countdown;
-	 int handle = 1;
+	uint16_t block_number = 0;
+	int countdown;
+	int handle = 1;
+	int c;
 
-	 char* filename;
-	 strcpy(filename,(char *)msg->request.filename_mode);
-     char* end;
-     end = &filename[len - 2 - 1];
+	ACK(msg, block_number, cli_sock, cli_len);
+          
+	if (c < 0) {
+	   printf("%s.%u: transfer killed\n",
+	          inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+	   exit(1);
+	}
 
-     if (*end != '\0') {
-          printf("%s.%u: invalid filename\n",
-                 inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-          ERROR();
-          exit(1);
-     }
+	while(handle){
 
-	 while(handle){
-
-	 }
-<<<<<<< HEAD
-
-	 
-=======
+	}
 }
->>>>>>> 6caae9d030d72bd506094072d3232aa2426184a3
 
 void WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 }
@@ -80,7 +71,7 @@ void DATA(message *msg, ssize_t len, uint16_t block_num,  uint8_t *data_body, st
 	message msg; 
 
 	memcpy(msg.data.data_body, data_body, sizeof(data_body));
-	m.data.block_num = block_num 
+	msg.data.block_num = block_num 
 	msg.opcode = htons(03); 
 	
 	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, cli_len) <0){
@@ -88,15 +79,11 @@ void DATA(message *msg, ssize_t len, uint16_t block_num,  uint8_t *data_body, st
 	}
 }
 
-void ACK(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-
-}
-
 void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	message msg; 	
 
-	msg.opcode = 05
-	char* err_msg[512]; 
+	msg.opcode = 05;
+	char* err_msg; 
 	if(err == 0){
 		err_msg = "Not defined, see error message.\n\0"; 
 	}
@@ -118,16 +105,48 @@ void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen
 	else if(err == 6){
 		err_msg = "File already exists.\n\0"; 
 	}
-	else if(err = 7){
-		err_msg = "No such user.\n\0".
+	else if(err == 7){
+		err_msg = "No such user.\n\0";
 	}
-	strcpy(m.error.err_msg, err_msg); 
+	strcpy((char*)msg.error.errmsg, err_msg); 
 	msg.error.error_code = err;
-	msg.opcode = htons(05)
+	msg.opcode = htons(05);
 
-	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, cli_len) <0){
+	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, *cli_len) <0){
 		perror("sendto() failed"); 
 	}
+}
+
+void chld_handler(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	char* filename;
+	strcpy(filename,(char *)msg->request.filename_mode);
+    char* end;
+    end = &filename[len - 2 - 1];
+
+    if (*end != '\0') {
+        printf("%s.%u: invalid filename\n",
+        	inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+        ERROR();
+        exit(1);
+    } //check filename
+
+     if() {
+          printf("%s.%u: filename outside base directory\n",
+                 inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+          ERROR();
+          exit(1);
+     } // file not in directory 
+     //TODO: use lstat to implement this
+
+    printf("%s.%u: request ready: %s '%s' %s\n", 
+        inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
+        ntohs(msg->opcode) == 01 ? "get" : "put", filename, "octet");
+
+	if (client.opcode == 01){
+        RRQ(*msg, len, *cli_sock, *cli_len); 
+    } else if(client.opcode == 02){
+        WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len); 
+    }
 }
 
 int main(int argc, char const *argv[]){
@@ -187,12 +206,6 @@ int main(int argc, char const *argv[]){
     				perror("Error on binding");
 				}
 
-        		if (client.opcode == 01){
-        			RRQ(&client, len, &client_sock, &cli_len); 
-        		}
-        		else if(client.opcode == 02){
-        			WRQ(&client, len, &client_sock, &cli_len); 
-        		}
         	}
         	else{ //parent
         		continue;
