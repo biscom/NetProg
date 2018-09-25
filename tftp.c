@@ -74,7 +74,7 @@ int ACK(int sock, uint16_t block_num, struct sockaddr_in *cli_sock, socklen_t *c
 	return 1; 
 }
 
-void RRQ(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void RRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	uint16_t block_number = 0;
 	int countdown;
 	int handle = 1;
@@ -88,7 +88,7 @@ void RRQ(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock,
 		exit(1);
 	}
 
-	while(handle){
+	for (int i =0; i < block_number; i++){
 		ssize_t pkt = recvfrom();
 
 		if (pkt >= 0 && pkt < 4) {
@@ -129,7 +129,9 @@ void RRQ(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock,
 			exit(1);
 		}
 
-		pkt = DATA();
+		message info;
+
+		pkt = DATA(newsockfd, len, block_number, msg.data, cli_sock, cli_len);
 
 		if (pkt < 0) {
 			perror("server: DATA()");
@@ -148,10 +150,10 @@ void RRQ(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock,
 
 }
 
-void WRQ(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 }
 
-void DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+int DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	message msg; 
 
 	memcpy(msg.data.data, data_body, sizeof(data_body));
@@ -160,7 +162,10 @@ void DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct
 	
 	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, cli_len) <0){
 		perror("sendto() failed\n"); 
+		return 0; 
 	}
+
+	return 1;
 }
 
 void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
@@ -214,7 +219,7 @@ void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *
 		exit(1);
     } //check filename
 
-     //TODO: use lstat to implement this
+     //Use lstat to implement this
     //TA in office hours said we only need to care about filenames, not whole directories
      if(!fileExists(filename)) {
           printf("%s.%u: filename outside base directory\n",
@@ -228,10 +233,12 @@ void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *
      	inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
      	ntohs(msg->opcode) == 01 ? "get" : "put", filename, "octet");
 
+     FILE* file = fopen(filename,"r+");
+
      if (msg->opcode == 01){
-     	RRQ(newsockfd, msg, len, cli_sock, cli_len); 
+     	RRQ(file, newsockfd, msg, len, cli_sock, cli_len); 
      } else if(msg->opcode == 02){
-     	WRQ(newsockfd, msg, len, cli_sock, cli_len); 
+     	WRQ(file, newsockfd, msg, len, cli_sock, cli_len); 
      }
  }
 
