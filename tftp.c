@@ -24,15 +24,15 @@
  */
 int fileExists(const char *path)
 {
-    struct stat stats;
+	struct stat stats;
 
-    lstat(path, &stats);
+	lstat(path, &stats);
 
     // Check for file existence
-    if (stats.st_mode & F_OK)
-        return 1;
+	if (stats.st_mode & F_OK)
+		return 1;
 
-    return 0;
+	return 0;
 }
 
 typedef union {
@@ -62,131 +62,6 @@ typedef union {
 	} error;
 
 } message;
-
-int ACK(int sock, uint16_t block_num, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-
-	//this function returns 1 upon sending, 0 otherwise
-	message msg; 
-	msg.ack.block_num = block_num; 
-	msg.opcode = htons(block_num); 
-
-	if(sendto(sock, &msg, sizeof(&msg) + 1, 0, (struct sockaddr*) cli_sock, *cli_len) < 0){
-		perror("sendto failed!\n"); 
-		return 0;
-	}
-
-	return 1; 
-}
-
-void RRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	uint16_t block_number = 0;
-	int countdown;
-	int handle = 1;
-	int c;
-
-	ACK(newsockfd, block_number, cli_sock, cli_len);
-
-	if (c < 0) {
-		printf("%s.%u: transfer killed\n",
-			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-		exit(1);
-	}
-
-	for (int i =0; i < block_number; i++){
-		ssize_t pkt = recvfrom();
-
-		if (pkt >= 0 && pkt < 4) {
-			printf("%s.%u: invalid message received\n",
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-			ERROR();
-			exit(1);
-		}
-
-		pkt = ACK(newsockfd, block_number, cli_sock, cli_len);
-
-		if (pkt < 0) {
-			printf("%s.%u: transfer killed\n",
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-			exit(1);
-		}
-
-		block_number++;
-
-		if (ntohs(msg->opcode) == 05)  {
-			printf("%s.%u: error message: %u %s\n",
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
-				ntohs(msg->error.error_code), msg->error.errmsg);
-			exit(1);
-		}
-
-		if (ntohs(msg->opcode) != 03)  {
-			printf("%s.%u: invalid message during transfer\n",
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-			ERROR();
-			exit(1);
-		}
-
-		if (ntohs(msg->ack.block_num) != block_number) {
-			printf("%s.%u: invalid block number\n", 
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-			ERROR();
-			exit(1);
-		}
-
-		message info;
-
-		pkt = DATA(newsockfd, len, block_number, msg.data, cli_sock, cli_len);
-
-		if (pkt < 0) {
-			perror("server: DATA()");
-			exit(1);
-		}
-
-		pkt = ACK(newsockfd, block_number, cli_sock, cli_len);
-
-		if (pkt < 0) {
-			printf("%s.%u: transfer killed\n",
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-			exit(1);
-		}
-
-	}
-
-}
-
-void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	//file is the bytestream of the file 
-	//starting our variables 
-	uint16_t block_number; block_number = 0; 
-	int countdown; 
-	int handle; handle = 1; 
-	int retries; retries = 0; 
-	int i; 
-	int state; 
-
-	//first, send an ACK that we got the WRQ and are going to start writing 
-	state = ACK(newsockfd, block_number, cli_sock, cli_len); 
-	if(state == 0){
-		ERROR(newsockfd, 0, len, cli_sock, cli_len); 
-		printf("%s.%u: transfer killed\n",
-			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-		exit(1);
-	}
-}
-int DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	message msg; 
-
-	memcpy(msg.data.data, data_body, sizeof(data_body));
-	msg.data.block_num = block_num 
-	msg.opcode = htons(03); 
-	
-	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, cli_len) <0){
-		perror("sendto() failed\n"); 
-		return 0; 
-	}
-
-	return 1;
-}
 
 void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	message msg; 	
@@ -225,6 +100,132 @@ void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen
 		perror("sendto() failed"); 
 	}
 }
+int ACK(int sock, uint16_t block_num, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+
+	//this function returns 1 upon sending, 0 otherwise
+	message msg; 
+	msg.ack.block_num = block_num; 
+	msg.opcode = htons(block_num); 
+
+	if(sendto(sock, &msg, sizeof(&msg) + 1, 0, (struct sockaddr*) cli_sock, *cli_len) < 0){
+		perror("sendto failed!\n"); 
+		return 0;
+	}
+
+	return 1; 
+}
+
+int DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	message msg; 
+
+	memcpy(msg.data.data, data_body, sizeof(&data_body));
+	msg.data.block_num = block_num; 
+	msg.opcode = htons(03); 
+	
+	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, *cli_len) <0){
+		perror("sendto() failed\n"); 
+		return 0; 
+	}
+
+	return 1;
+}
+
+void RRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	uint16_t block_number = 0;
+	int countdown;
+	int handle = 1;
+	int state;
+	uint8_t* byte_stream;
+
+	state = ACK(newsockfd, block_number, cli_sock, cli_len);
+
+	if (state == 0) {
+		printf("%s.%u: transfer killed\n",
+			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+		exit(1);
+	}
+
+	for (int i =0; i < block_number; i++){
+		ssize_t pkt = recvfrom(newsockfd,msg,sizeof(*msg),0,(struct sockaddr *) cli_sock,cli_len);
+
+		if (pkt >= 0 && pkt < 4) {
+			printf("%s.%u: invalid message received\n",
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+			ERROR(newsockfd,0,len,cli_sock,cli_len);
+			exit(1);
+		}
+
+		if (ntohs(msg->opcode) == 05)  {
+			printf("%s.%u: error message: %u %s\n",
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
+				ntohs(msg->error.error_code), msg->error.errmsg);
+			exit(1);
+		}
+
+		if (ntohs(msg->opcode) != 03)  {
+			printf("%s.%u: invalid message during transfer\n",
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+			ERROR(newsockfd,0,len,cli_sock,cli_len);
+			exit(1);
+		}
+
+		if (ntohs(msg->ack.block_num) != block_number) {
+			printf("%s.%u: invalid block number\n", 
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+			ERROR(newsockfd,0,len,cli_sock,cli_len);
+			exit(1);
+		}
+
+		char i;
+		int j = 0;
+		while((i = fgetc(file)) != EOF){
+			if (j >= 512 || i == feof(file)){
+				pkt = DATA(newsockfd, len, block_number, byte_stream, cli_sock, cli_len);
+				memset(byte_stream, 0, 512);
+			} else {		
+				byte_stream[j] = i;
+				j++;
+			}
+		}
+
+		if (pkt < 0) {
+			perror("server: DATA()");
+			exit(1);
+		}
+
+		pkt = ACK(newsockfd, block_number, cli_sock, cli_len);
+
+		if (pkt < 0) {
+			printf("%s.%u: transfer killed\n",
+				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+			exit(1);
+		}
+		block_number++; 
+	}
+
+}
+
+
+void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+//file is the bytestream of the file 
+	//starting our variables 
+	uint16_t block_number; block_number = 0; 
+	int countdown; 
+	int handle; handle = 1; 
+	int retries; retries = 0; 
+	int i; 
+	int state; 
+
+	//first, send an ACK that we got the WRQ and are going to start writing 
+	state = ACK(newsockfd, block_number, cli_sock, cli_len); 
+	if(state == 0){
+		ERROR(newsockfd, 0, len, cli_sock, cli_len); 
+		printf("%s.%u: transfer killed\n",
+			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+		exit(1);
+	}
+}
+
 
 void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	char* filename;
@@ -235,17 +236,17 @@ void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *
 	if (*end != '\0') {
 		printf("%s.%u: invalid filename\n",
 			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-		ERROR();
+		ERROR(newsockfd,0,len,cli_sock,cli_len);
 		exit(1);
     } //check filename
 
      //Use lstat to implement this
     //TA in office hours said we only need to care about filenames, not whole directories
-     if(!fileExists(filename)) {
-          printf("%s.%u: filename outside base directory\n",
-                 inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-          ERROR();
-          exit(1);
+    if(!fileExists(filename)) {
+    	printf("%s.%u: filename outside base directory\n",
+    		inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+    	ERROR(newsockfd,0,len,cli_sock,cli_len);
+    	exit(1);
 
      } // file not in directory 
 
