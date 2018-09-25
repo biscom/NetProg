@@ -60,13 +60,13 @@ typedef union {
 
 } message;
 
-int ACK(int sock, message *msg, ssize_t len, uint16_t block_num, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+int ACK(int sock, uint16_t block_num, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	//this function returns 1 upon sending, 0 otherwise
 	message msg; 
 	msg.ack.block_num = block_num; 
 	msg.opcode = htons(block_num); 
 
-	if(sendto(sock, &msg, sizeof(&msg) + 1, 0, (struct sockaddr*) cli_sock, cli_len) < 0){
+	if(sendto(sock, &msg, sizeof(&msg) + 1, 0, (struct sockaddr*) cli_sock, *cli_len) < 0){
 		perror("sendto failed!\n"); 
 		return 0;
 	}
@@ -74,13 +74,13 @@ int ACK(int sock, message *msg, ssize_t len, uint16_t block_num, struct sockaddr
 	return 1; 
 }
 
-void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void RRQ(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	uint16_t block_number = 0;
 	int countdown;
 	int handle = 1;
 	int c;
 
-	ACK(msg, block_number, cli_sock, cli_len);
+	ACK(newsockfd, block_number, cli_sock, cli_len);
 
 	if (c < 0) {
 		printf("%s.%u: transfer killed\n",
@@ -98,7 +98,7 @@ void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli
 			exit(1);
 		}
 
-		pkt = ACK(msg, block_number, cli_sock, cli_len);
+		pkt = ACK(newsockfd, block_number, cli_sock, cli_len);
 
 		if (pkt < 0) {
 			printf("%s.%u: transfer killed\n",
@@ -136,7 +136,7 @@ void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli
 			exit(1);
 		}
 
-		pkt = ACK(msg, block_number, cli_sock, cli_len);
+		pkt = ACK(newsockfd, block_number, cli_sock, cli_len);
 
 		if (pkt < 0) {
 			printf("%s.%u: transfer killed\n",
@@ -148,13 +148,13 @@ void RRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli
 
 }
 
-void WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void WRQ(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 }
 
-void DATA(int sock, message *msg, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	message msg; 
 
-	memcpy(msg.data.data_body, data_body, sizeof(data_body));
+	memcpy(msg.data.data, data_body, sizeof(data_body));
 	msg.data.block_num = block_num 
 	msg.opcode = htons(03); 
 	
@@ -201,7 +201,7 @@ void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen
 	}
 }
 
-void chld_handler(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	char* filename;
 	strcpy(filename,(char *)msg->request.filename_mode);
 	char* end;
@@ -228,10 +228,10 @@ void chld_handler(message *msg, ssize_t len, struct sockaddr_in *cli_sock, sockl
      	inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
      	ntohs(msg->opcode) == 01 ? "get" : "put", filename, "octet");
 
-     if (client.opcode == 01){
-     	RRQ(*msg, len, *cli_sock, *cli_len); 
-     } else if(client.opcode == 02){
-     	WRQ(message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len); 
+     if (msg->opcode == 01){
+     	RRQ(newsockfd, msg, len, cli_sock, cli_len); 
+     } else if(msg->opcode == 02){
+     	WRQ(newsockfd, msg, len, cli_sock, cli_len); 
      }
  }
 
@@ -292,13 +292,20 @@ void chld_handler(message *msg, ssize_t len, struct sockaddr_in *cli_sock, sockl
  					perror("Error on binding");
  				}
 
+ 				chld_handler(newsockfd, &client, len, &client_sock, &cli_len);
+
  			}
-        	else{ //parent
+
+        	else { //parent
+
         		continue;
+
         	}
-        }
-        else{
+
+        } else {
+
         	perror("Error in the code!\n");
+
         }
 
     }
