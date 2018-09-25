@@ -12,6 +12,7 @@
 #include <string.h>
 
 #define BUFSIZE 1024
+#define MAX_RETRIES 5
 
 //TODO: TIMOUTS AND SIGNAL HANDLING IMPLEMENTATION, GOTTA WAIT FOR THOSE KIDDOS TO DIE 
 
@@ -153,10 +154,25 @@ void RRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_i
 
 }
 
-void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len)
+void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	//file is the bytestream of the file 
+	//starting our variables 
+	uint16_t block_number; block_number = 0; 
+	int countdown; 
+	int handle; handle = 1; 
+	int retries; retries = 0; 
+	int i; 
+	int state; 
 
+	//first, send an ACK that we got the WRQ and are going to start writing 
+	state = ACK(newsockfd, block_number, cli_sock, cli_len); 
+	if(state == 0){
+		ERROR(newsockfd, 0, len, cli_sock, cli_len); 
+		printf("%s.%u: transfer killed\n",
+			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+		exit(1);
+	}
 }
-
 int DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
 	message msg; 
 
