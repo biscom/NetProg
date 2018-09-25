@@ -303,7 +303,7 @@ void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *
  		opcode = ntohs(client.opcode); 
  		printf("Opcode is: %d\n", opcode);
 
- 		if(client.opcode == 01 || client.opcode == 02){
+ 		if(opcode == 01 || opcode == 02){
  			if(fork() == 0){
  				if ( (newsockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
  					perror("socket creation failed"); 
