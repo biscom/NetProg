@@ -13,6 +13,8 @@
 
 #define BUFSIZE 1024
 
+//TODO: TIMOUTS AND SIGNAL HANDLING IMPLEMENTATION, GOTTA WAIT FOR THOSE KIDDOS TO DIE 
+
 //credits to https://codeforwin.org/2018/03/c-program-check-file-or-directory-exists-not.html
 /**
  * Function to check whether a file exists or not using
@@ -61,6 +63,7 @@ typedef union {
 } message;
 
 int ACK(int sock, uint16_t block_num, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+
 	//this function returns 1 upon sending, 0 otherwise
 	message msg; 
 	msg.ack.block_num = block_num; 
@@ -150,7 +153,8 @@ void RRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_i
 
 }
 
-void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len)
+
 }
 
 int DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
