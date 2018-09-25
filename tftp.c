@@ -1,4 +1,3 @@
-#include "unpv13e/lib/unp.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -122,7 +121,7 @@ int DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct 
 	msg.data.block_num = block_num; 
 	msg.opcode = htons(03); 
 	
-	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, *cli_len) <0){
+	if(sendto(sock, &msg, len, 0, (struct sockaddr *) cli_sock, *cli_len) <0){
 		perror("sendto() failed\n"); 
 		return 0; 
 	}
@@ -286,7 +285,7 @@ void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *
 
  	unsigned int server_len = sizeof(server_sock);
  	int sock_name = getsockname(sockfd, (struct sockaddr *) &server_sock, &server_len);
- 	printf("Port Number: %d\n", sock_name);
+ 	printf("Port Number: %d\n",(int) ntohs(server_sock.sin_port));
 
 
  	while (1) {
@@ -297,11 +296,12 @@ void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *
  		message client;
  		uint16_t opcode; 
 
- 		if ((len = recvfrom(sockfd, &client, sizeof(&client), 0, (struct sockaddr *) &client_sock, &cli_len)) < 0) {
+ 		if ((len = recvfrom(sockfd, &client, sizeof(client), 0, (struct sockaddr *) &client_sock, &cli_len)) < 0) {
  			perror("Connection failed.");
  		}
 
  		opcode = ntohs(client.opcode); 
+ 		printf("Opcode is: %d\n", opcode);
 
  		if(client.opcode == 01 || client.opcode == 02){
  			if(fork() == 0){
@@ -320,6 +320,7 @@ void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *
  					perror("Error on binding");
  				}
 
+ 				printf("Connection successful\n");
  				chld_handler(newsockfd, &client, len, &client_sock, &cli_len);
 
  			}
