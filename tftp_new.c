@@ -11,6 +11,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <fcntl.h>
+#include <signal.h>
 
 #define BUFSIZE 1024
 #define MAX_RETRIES 5
@@ -47,26 +48,29 @@ void sig_child(int signo){
 	return;
 }
 
-void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int buf_size){
-	int fd;
+void RRQ(int childfd, struct sockaddr_in *child_sock, char buf[], unsigned int buf_size, struct sockaddr_in *server_sock){
+	printf("%s",buf);
+	printf("In rrq\n");
+	int fd, block_num, len;
 	char childBuf[516];
-	unsigned short int *opcode_ptr = (unsigned short int*) childBuf;
+	unsigned short int *buf_ptr = (unsigned short int*) childBuf;
     //Get file
-	char* filename;
-	strcpy(filename,buf+2);
-	ssize_t len;
-
+	char* filename = buf+2;
+	ssize_t val;
+	int timeout = 0;
+	printf("filename: %s", filename);
 	//open file
 	if((fd = open(filename, O_RDONLY)) < 0){
+		printf("%d\n", fd);
         //file not found, add error to send buffer
-		*opcode_ptr = htons(5);
-		*(opcode_ptr + 1) = htons(1);
+		*buf_ptr = htons(5);
+		*(buf_ptr + 1) = htons(1);
 		*(childBuf + 4) = 0;
 		printf("FILE NOT FOUND\n");
 		file_send:
-		len = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) &child_sock, sizeof(child_sock));
+		val = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) &server_sock, sizeof(server_sock));
         //error sending
-		if(len < 0){
+		if(val < 0){
 			if(errno == EINTR){
 				goto file_send;
 			}
@@ -75,7 +79,50 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 		}
 		exit(-1);
 	}
+	
+	block_num = 1;
+	while((len = read(childfd, buf_ptr+2 , 512)) != 0){
+		*buf_ptr = htons(3);
+		*(buf_ptr + 1) = htons(block_num);
+		send_rrq:
+		val = sendto(childfd,childBuf,len+4,0, (struct sockaddr *) &server_sock, sizeof(server_sock));
+		if (val < 0){
+			if (errno == EINTR){
+				goto send_rrq;
+			}
+			perror("read packet failed to send");
+			exit(-1);
+		}
+	}
 
+	retrieve_ack:
+
+	val = recvfrom(childfd, childBuf, sizeof(childBuf), 0, (struct sockaddr *) server_sock, &buf_size);
+
+	if (val < 0) {
+		if (errno == EINTR){
+			if (timeout < 10){
+				goto send_rrq;
+			} else {
+				printf("Timed out\n");
+				close(childfd);
+				exit(-1);
+			}
+			perror("ERROR: recvfrom");
+			exit(-1);
+		}
+	} else {
+		char temp[4];
+		unsigned short int *temp_ptr = (unsigned short int*) temp;
+        if(*temp_ptr == htons(4) && *(temp_ptr + 1) == htons(block_num)){
+            block_num++;
+        } else {
+            printf("Unexpected packet, exiting\n");
+            exit(-1);
+        }
+	}
+	printf("success\n");
+	close(childfd);
 }     
 
 void WRQ(int childfd, struct sockaddr_in *child_sock, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
@@ -175,10 +222,11 @@ void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, c
 		exit(-1);
 	}
 
-	printf("In child\n");
+	//printf("In child\n");
 
 	if (opcode == 1){
-		RRQ(childfd, &child_sock, buf, buf_size);
+		printf("pre read\nbuffer: %s", buf);
+		RRQ(childfd, &child_sock, buf, buf_size, server_sock);
 	}
 
 	if (opcode == 2){
@@ -222,7 +270,7 @@ int main(int argc, char const *argv[]){
 	getsockname(sockfd, (struct sockaddr *) &server_sock, &server_len);
 	printf("%d\n", ntohs(server_sock.sin_port));
 
-	signal(SIGCHLD, sig_child); 
+	//signal(SIGCHLD, sig_child); 
 	while (1) {
 		receive:
 		len = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *) &server_sock, &server_len);
