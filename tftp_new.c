@@ -35,6 +35,17 @@ int fileExists(const char *path)
 	return 0;
 }
 
+void sig_child(int signo){
+	pid_t pid; 
+	int stat; 
+
+	while( (pid = waitpid(-1, &stat, WHOHANG)) > 0){
+		printf("child %d terminated\n", pid); 
+	}
+
+	return;
+}
+
 /*typedef union {
 
 	char* opcode[];
@@ -331,7 +342,7 @@ int main(int argc, char const *argv[]){
 	getsockname(sockfd, (struct sockaddr *) &server_sock, &server_len);
 	printf("%d\n", ntohs(server_sock.sin_port));
 
-
+	signal(SIGCHLD, sig_child); 
 	while (1) {
 		receive:
 		len = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *) &server_sock, &server_len);
