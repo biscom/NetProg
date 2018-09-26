@@ -78,7 +78,7 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 
 }     
 
-void WRQ(int child_sock, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
+void WRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int buf_size){
 
 	//Get file
 	char* filename;
