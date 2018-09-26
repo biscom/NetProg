@@ -36,7 +36,17 @@ int fileExists(const char *path)
 	return 0;
 }
 
-<<<<<<< HEAD
+void sig_child(int signo){
+	pid_t pid; 
+	int stat; 
+
+	while( (pid = waitpid(-1, &stat, WNOHANG)) > 0){
+		printf("child %d terminated\n", pid); 
+	}
+
+	return;
+}
+
 void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int buf_size){
 	int fd;
 	char childBuf[516];
@@ -45,129 +55,28 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 	char* filename;
 	strcpy(filename,buf+2);
 	ssize_t len;
-=======
-void sig_child(int signo){
-	pid_t pid; 
-	int stat; 
-
-	while( (pid = waitpid(-1, &stat, WHOHANG)) > 0){
-		printf("child %d terminated\n", pid); 
-	}
-
-	return;
-}
-
-/*typedef union {
-
-	char* opcode[];
-
-	struct{
-		uint16_t opcode;
-		uint8_t filename_mode[512];
-	} request;
-
-	struct{
-		uint16_t opcode;
-		uint16_t block_num;
-		uint8_t data;
-	} data;
-
-	struct{
-		uint16_t opcode;
-		uint16_t block_num;
-	} ack;
-
-	struct{
-		uint16_t opcode;
-		uint16_t error_code;
-		uint8_t errmsg[512];
-	} error;
-
-} message;
-
-void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	message msg; 	
-
-	msg.opcode = 05;
-	char* err_msg; 
-	if(err == 0){
-		err_msg = "Not defined, see error message.\n\0"; 
-	}
-	else if(err == 1){
-		err_msg = "File not found.\n\0"; 
-	}
-	else if(err == 2){
-		err_msg = "Access violation.\n\0"; 
-	}
-	else if(err == 3){
-		err_msg = "Disk full or allocation exceeded.\n\0"; 
-	}
-	else if(err == 4){
-		err_msg = "Illegal FTP Operation.\n\0"; 
-	}
-	else if(err == 5){
-		err_msg = "Unknown transfer ID.\n\0"; 
-	}
-	else if(err == 6){
-		err_msg = "File already exists.\n\0"; 
-	}
-	else if(err == 7){
-		err_msg = "No such user.\n\0";
-	}
-	strcpy((char*)msg.error.errmsg, err_msg); 
-	msg.error.error_code = err;
-	msg.opcode = htons(05);
-
-	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, *cli_len) <0){
-		perror("sendto() failed"); 
-	}
-}
-int ACK(int sock, uint16_t block_num, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-
-	//this function returns 1 upon sending, 0 otherwise
-	message msg; 
-	msg.ack.block_num = block_num; 
-	msg.opcode = htons(block_num); 
-
-	if(sendto(sock, &msg, sizeof(&msg) + 1, 0, (struct sockaddr*) cli_sock, *cli_len) < 0){
-		perror("sendto failed!\n"); 
-		return 0;
-	}
-
-	return 1; 
-}
-
-int DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	message msg; 
-
-	memcpy(msg.data.data, data_body, sizeof(&data_body));
-	msg.data.block_num = block_num; 
-	msg.opcode = htons(03); 
-	
->>>>>>> 2375c1f05f34aa2b7fda3b886e5e1e17f4619281
 
 	//open file
-    if((fd = open(filename, O_RDONLY)) < 0){
+	if((fd = open(filename, O_RDONLY)) < 0){
         //file not found, add error to send buffer
-        *opcode_ptr = htons(5);
-        *(opcode_ptr + 1) = htons(1);
-        *(childBuf + 4) = 0;
-        printf("FILE NOT FOUND\n");
-    file_send:
-        len = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) &child_sock, sizeof(child_sock));
+		*opcode_ptr = htons(5);
+		*(opcode_ptr + 1) = htons(1);
+		*(childBuf + 4) = 0;
+		printf("FILE NOT FOUND\n");
+		file_send:
+		len = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) &child_sock, sizeof(child_sock));
         //error sending
-        if(len < 0){
-            if(errno == EINTR){
-            	goto file_send;
-            }
-            perror("sendto error");
-            exit(-1);
-        }
-        exit(-1);
-    }
+		if(len < 0){
+			if(errno == EINTR){
+				goto file_send;
+			}
+			perror("sendto error");
+			exit(-1);
+		}
+		exit(-1);
+	}
 
-	}     
-}
+}     
 
 void WRQ(int child_sock, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 
