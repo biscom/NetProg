@@ -78,12 +78,71 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 
 }     
 
-void WRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int buf_size){
+void WRQ(int childfd, struct sockaddr_in *child_sock, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 
 	//Get file
 	char* filename;
 	strcpy(filename,buf+2);
-
+	int block; 
+	int block_len;
+	ssize_t len; 
+	char* childBuf[516]; 
+	unsigned short int *opcode_ptr = (unsigned short int*) childBuf;
+	// so I am assuming the client is going to send data and I have 
+	// to receive it. Need to open a new file in w mode and write the buffer
+	// to the file
+	// If the file exists, make sure nothing is written.
+	if(fileExists(filename)){
+		//send a ERROR packet
+		*opcode_ptr = htons(5);
+		*(opcode_ptr + 1) = htons(1);
+		*(childBuf + 4) = 0;
+		printf("FILE EXISTS\n");
+		file_exists:
+		len = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) &child_sock, sizeof(child_sock));
+        //error sending
+		if(len < 0){
+			if(errno == EINTR){
+				goto file_exists;
+			}
+			perror("sendto error");
+			exit(-1);
+		}
+		exit(-1);
+	}
+	//open the file since it does not exist 
+	memset(&childBuf, 0, sizeof(childBuf));
+	FILE *fptr = fopen(filename, "w"); 
+	int kid_fd = fileno(*fptr);
+	//send ACK that it's about to happen! 
+	*opcode_ptr = htons(3);
+	*(opcode_ptr + 1) = htons(0);
+	//now go through and send "DATA" things to the file 
+	while(1){
+		memset(&childBuf, 0, sizeof(childBuf));
+		len = recvfrom(child_sock, childBuf, 516, 0, (struct sockaddr*) server_sock, sizeof(*child_sock)); 
+		if(len < 0){
+			perror("put more stuff related to timeouts here"); 
+			exit(-1); 
+		}
+		//TODO: check it's a DATA block 
+		if (*(unsigned short *) childBuf != htons(03)) {
+			printf("ERROR: DID NOT RECIEVE DATA PACKET\n");
+			continue; 
+		}
+		//TODO: check it's the right block_num / INTEGRATE BLOCK SIZES WHOOPS 
+		buffer[len] = '\0'
+		write(kid_fd, childBuf + 4, n-4); 
+		if(len < 516){
+			break;
+		}
+	}
+	//SEND one last ACK not sure if it's the way too but whatevs 
+	*opcode_ptr = htons(3);
+	*(opcode_ptr + 1) = htons(0);
+	//close stuff now! 
+	close(kid_fd); 
+	close(childfd);
 }
 
 void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
@@ -123,7 +182,7 @@ void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, c
 	}
 
 	if (opcode == 2){
-		WRQ(childfd, &child_sock, buf, buf_size);
+		WRQ(childfd, &child_sock, &server_sock, buf, buf_size);
 	}
 }
 
@@ -147,7 +206,7 @@ int main(int argc, char const *argv[]){
 	memset(&server_sock, 0, server_len);
 	server_sock.sin_family = AF_INET;
 	server_sock.sin_addr.s_addr = INADDR_ANY;
-	server_sock.sin_port = htons(6500);
+	server_sock.sin_port = htons(6500); //TODO: set to 0 when all done
 
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
