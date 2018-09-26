@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -225,6 +224,8 @@ void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_i
 			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
 		exit(1);
 	}
+
+
 }
 
 
@@ -302,7 +303,7 @@ void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *
  			perror("Connection failed.");
  		}
 
- 		opcode = ntohs(client.opcode); 
+ 		opcode = atoi(ntohs(client.opcode)); 
  		printf("Opcode is: %d\n", opcode);
 
  		if(client.opcode == 01 || client.opcode == 02){
