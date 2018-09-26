@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -130,7 +131,7 @@ int DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct 
 	return 1;
 }
 
-void RRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+void RRQ(struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 	uint16_t block_number = 0;
 	int countdown;
 	int handle = 1;
@@ -224,142 +225,141 @@ void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_i
 			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
 		exit(1);
 	}
-
-
 }
 
+*/
+void chld_handler(unsigned short int opcode, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
+	int childfd;
+	socklen_t child_len;
+	struct sockaddr_in child_sock;
+	ssize_t len;
 
-void chld_handler(int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
+	child_len = sizeof(child_sock);
+
+	// Creating socket file descriptor 
+	if ( (childfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+		perror("child creation failed"); 
+		exit(EXIT_FAILURE); 
+	} 
+
+	memset(&child_sock, 0, sizeof child_sock);
+	child_sock.sin_family = AF_INET;
+	child_sock.sin_addr.s_addr = htonl(INADDR_ANY);
+	child_sock.sin_port = htons(0);
+
+
+	if ((childfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		perror("socket error");
+		exit(-1);
+	}
+
+	if (bind(childfd, (struct sockaddr*) &child_sock, child_len) < 0) {
+		perror("failed to bind");
+		exit(-1);
+	}
+
+	printf("In child\n");
+
+	unsigned short int *opcode_ptr = (unsigned short int *) buf;
+    unsigned short int *err_ptr = (unsigned short int *) buf;
+    unsigned short int *data_ptr = (unsigned short int *) buf;
+
+
+    //Get file
 	char* filename;
-	strcpy(filename,(char *)msg->request.filename_mode);
-	char* end;
-	end = &filename[len - 2 - 1];
-
-	if (*end != '\0') {
-		printf("%s.%u: invalid filename\n",
-			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-		ERROR(newsockfd,0,len,cli_sock,cli_len);
-		exit(1);
-    } //check filename
+	strcpy(filename,buf+2);
+	
 
      //Use lstat to implement this
     //TA in office hours said we only need to care about filenames, not whole directories
-    if(!fileExists(filename)) {
-    	printf("%s.%u: filename outside base directory\n",
-    		inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-    	ERROR(newsockfd,0,len,cli_sock,cli_len);
-    	exit(1);
+    // if(!fileExists(filename)) {
+    // 	printf("%s.%u: filename outside base directory\n",
+    // 		inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
+    // 	ERROR(newsockfd,0,len,cli_sock,cli_len);
+    // 	exit(1);
 
-     } // file not in directory 
-
-     printf("%s.%u: request ready: %s '%s' %s\n", 
-     	inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
-     	ntohs(msg->opcode) == 01 ? "get" : "put", filename, "octet");
+    //  } // file not in directory 
 
      FILE* file = fopen(filename,"r+");
 
-     if (msg->opcode == 01){
-     	RRQ(file, newsockfd, msg, len, cli_sock, cli_len); 
-     } else if(msg->opcode == 02){
-     	WRQ(file, newsockfd, msg, len, cli_sock, cli_len); 
-     }
+     // if (msg->opcode == 01){
+     // 	RRQ(file, newsockfd, msg, len, cli_sock, cli_len); 
+     // } else if(msg->opcode == 02){
+     // 	WRQ(file, newsockfd, msg, len, cli_sock, cli_len); 
+     // }
  }
-*/
- int main(int argc, char const *argv[]){
 
- 	int sockfd, newsockfd;
- 	struct sockaddr_in* server_sock;
+int main(int argc, char const *argv[]){
+	int sockfd;
+	socklen_t server_len;
+	struct sockaddr_in server_sock;
+
 	char buf[BUFSIZE]; /* message buf */
 	unsigned short int opcode;
+	ssize_t len;
+
+	server_len = sizeof(server_sock);
 
 	// Creating socket file descriptor 
- 	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
- 		perror("socket creation failed"); 
- 		exit(EXIT_FAILURE); 
- 	} 
+	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+		perror("socket creation failed"); 
+		exit(EXIT_FAILURE); 
+	} 
 
- 	memset(&server_sock, 0, sizeof server_sock);
- 	server_sock->sin_family = AF_INET;
- 	server_sock->sin_addr.s_addr = INADDR_ANY;
- 	server_sock->sin_port = 6500;
- 	if ((bind(sockfd, (struct sockaddr *) &server_sock, sizeof(server_sock)) == -1)){ 
- 		close(sockfd);
- 		perror("Error on binding");
- 	}
-
- 	unsigned int server_len = sizeof(server_sock);
- 	int sock_name = getsockname(sockfd, (struct sockaddr *) &server_sock, &server_len);
- 	printf("Port Number: %d\n",(int) ntohs(server_sock.sin_port));
+	memset(&server_sock, 0, server_len);
+	server_sock.sin_family = AF_INET;
+	server_sock.sin_addr.s_addr = INADDR_ANY;
+	server_sock.sin_port = htons(6500);
 
 
- 	while (1) {
- 		struct sockaddr_in client_sock;
- 		socklen_t cli_len = sizeof(client_sock);
- 		ssize_t len;
+	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		perror("socket error");
+		exit(-1);
+	}
 
- 		//message client;
- 		unsigned short int* opcode; 
+	if (bind(sockfd, (struct sockaddr*) &server_sock, server_len) < 0) {
+		perror("failed to bind");
+		exit(-1);
+	}
 
- 		if ((len = recvfrom(sockfd, &buf, sizeof(buf), 0, (struct sockaddr *) &client_sock, &cli_len)) < 0) {
- 			perror("Connection failed.");
- 		}
+	getsockname(sockfd, (struct sockaddr *) &server_sock, &server_len);
+	printf("%d\n", ntohs(server_sock.sin_port));
+
+
+	while (1) {
+		receive:
+		len = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *) &server_sock, &server_len);
+		printf("Len: %s\n", buf);
+		if (len < 0) {
+			if (errno == EINTR) {
+				goto receive;
+			}
+			perror("recvfrom");
+			exit(-1);
+		}
 
  		/* check the opcode */
-        unsigned short int *opcode_ptr = (unsigned short int *) buf;
-        opcode = ntohs(*opcode_ptr);
-        printf("%s\n", opcode);
+		unsigned short int * opcode_ptr = (unsigned short int *) buf;
+		opcode = ntohs(*opcode_ptr);
+		char op_char = opcode;
+		char str[10];
+		sprintf(str, "%c", opcode);
+		printf("Opcode: %d\n", atoi(str));
+		if(atoi(str) == 1 || opcode == 2){
+			printf("hi\n");
+			if(fork() == 0){
+				close(sockfd);
+				break;
 
-        if (opcode != 01 && opcode != 02) {
-            /* Illegal TFTP Operation */
-            *opcode_ptr = htons(ERROR);
-            *(opcode_ptr + 1) = htons(4);
-            *(buffer + 4) = 0;
-
-            intr_send:
-            n = sendto(server_socket, buffer, 5, 0, (struct sockaddr *) &sock_info, sockaddr_len);
-
-            if (n < 0) {
-                if (errno == EINTR) goto intr_send;
-                perror("sendto");
-                exit(-1);
-            }
-
- 		if(opcode == 01 || opcode == 02){
- 			printf("%s\n", opcode);
- 			if(fork() == 0){
- 				if ( (newsockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
- 					perror("socket creation failed"); 
- 					close(newsockfd); 
- 				} 
-
- 				memset(&server_sock, 0, sizeof server_sock);
- 				server_sock.sin_family = AF_INET;
- 				server_sock.sin_addr.s_addr = INADDR_ANY;
- 				server_sock.sin_port = 0;
-
- 				if ((bind(newsockfd, (struct sockaddr *) &client_sock, sizeof(client_sock)) == -1)){ 
- 					close(newsockfd);
- 					perror("Error on binding");
- 				}
-
- 				printf("Connection successful\n");
- 				chld_handler(newsockfd, &client, len, &client_sock, &cli_len);
-
- 			}
+			}
 
         	else { //parent
 
-        		continue;
-
         	}
-
-        } else {
-
-        	perror("Error in the code!\n");
-
         }
-
     }
+    printf("handle\n");
+    chld_handler(opcode,&server_sock, buf, BUFSIZE);
 
     return 0;
 }
