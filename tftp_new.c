@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <ctype.h>
 #include <string.h>
+#include <fcntl.h>
 
 #define BUFSIZE 1024
 #define MAX_RETRIES 5
@@ -35,199 +36,46 @@ int fileExists(const char *path)
 	return 0;
 }
 
-/*typedef union {
+void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int buf_size){
+	int fd;
+	char childBuf[516];
+	unsigned short int *opcode_ptr = (unsigned short int*) childBuf;
+    //Get file
+	char* filename;
+	strcpy(filename,buf+2);
+	ssize_t len;
 
-	char* opcode[];
+	//open file
+    if((fd = open(filename, O_RDONLY)) < 0){
+        //file not found, add error to send buffer
+        *opcode_ptr = htons(5);
+        *(opcode_ptr + 1) = htons(1);
+        *(childBuf + 4) = 0;
+        printf("FILE NOT FOUND\n");
+    file_send:
+        len = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) &child_sock, sizeof(child_sock));
+        //error sending
+        if(len < 0){
+            if(errno == EINTR){
+            	goto file_send;
+            }
+            perror("sendto error");
+            exit(-1);
+        }
+        exit(-1);
+    }
 
-	struct{
-		uint16_t opcode;
-		uint8_t filename_mode[512];
-	} request;
-
-	struct{
-		uint16_t opcode;
-		uint16_t block_num;
-		uint8_t data;
-	} data;
-
-	struct{
-		uint16_t opcode;
-		uint16_t block_num;
-	} ack;
-
-	struct{
-		uint16_t opcode;
-		uint16_t error_code;
-		uint8_t errmsg[512];
-	} error;
-
-} message;
-
-void ERROR(int sock, int err, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	message msg; 	
-
-	msg.opcode = 05;
-	char* err_msg; 
-	if(err == 0){
-		err_msg = "Not defined, see error message.\n\0"; 
-	}
-	else if(err == 1){
-		err_msg = "File not found.\n\0"; 
-	}
-	else if(err == 2){
-		err_msg = "Access violation.\n\0"; 
-	}
-	else if(err == 3){
-		err_msg = "Disk full or allocation exceeded.\n\0"; 
-	}
-	else if(err == 4){
-		err_msg = "Illegal FTP Operation.\n\0"; 
-	}
-	else if(err == 5){
-		err_msg = "Unknown transfer ID.\n\0"; 
-	}
-	else if(err == 6){
-		err_msg = "File already exists.\n\0"; 
-	}
-	else if(err == 7){
-		err_msg = "No such user.\n\0";
-	}
-	strcpy((char*)msg.error.errmsg, err_msg); 
-	msg.error.error_code = err;
-	msg.opcode = htons(05);
-
-	if(sendto(sock, &msg, strlen(err_msg) + 5, 0, (struct sockaddr *) cli_sock, *cli_len) <0){
-		perror("sendto() failed"); 
-	}
-}
-int ACK(int sock, uint16_t block_num, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-
-	//this function returns 1 upon sending, 0 otherwise
-	message msg; 
-	msg.ack.block_num = block_num; 
-	msg.opcode = htons(block_num); 
-
-	if(sendto(sock, &msg, sizeof(&msg) + 1, 0, (struct sockaddr*) cli_sock, *cli_len) < 0){
-		perror("sendto failed!\n"); 
-		return 0;
-	}
-
-	return 1; 
+	}     
 }
 
-int DATA(int sock, ssize_t len, uint16_t block_num,  uint8_t *data_body, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-	message msg; 
+void WRQ(int child_sock, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 
-	memcpy(msg.data.data, data_body, sizeof(&data_body));
-	msg.data.block_num = block_num; 
-	msg.opcode = htons(03); 
-	
-
-	if(sendto(sock, &msg, len, 0, (struct sockaddr *) cli_sock, *cli_len) <0){
-		perror("sendto() failed\n"); 
-		return 0; 
-	}
-
-	return 1;
-}
-
-void RRQ(struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
-	uint16_t block_number = 0;
-	int countdown;
-	int handle = 1;
-	int state;
-	uint8_t* byte_stream;
-
-	state = ACK(newsockfd, block_number, cli_sock, cli_len);
-
-	if (state == 0) {
-		printf("%s.%u: transfer killed\n",
-			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-		exit(1);
-	}
-
-	for (int i =0; i < block_number; i++){
-		ssize_t pkt = recvfrom(newsockfd,msg,sizeof(*msg),0,(struct sockaddr *) cli_sock,cli_len);
-
-		if (pkt >= 0 && pkt < 4) {
-			printf("%s.%u: invalid message received\n",
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-			ERROR(newsockfd,0,len,cli_sock,cli_len);
-			exit(1);
-		}
-
-		if (ntohs(msg->opcode) == 05)  {
-			printf("%s.%u: error message: %u %s\n",
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port),
-				ntohs(msg->error.error_code), msg->error.errmsg);
-			exit(1);
-		}
-
-		if (ntohs(msg->opcode) != 03)  {
-			printf("%s.%u: invalid message during transfer\n",
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-			ERROR(newsockfd,0,len,cli_sock,cli_len);
-			exit(1);
-		}
-
-		if (ntohs(msg->ack.block_num) != block_number) {
-			printf("%s.%u: invalid block number\n", 
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-			ERROR(newsockfd,0,len,cli_sock,cli_len);
-			exit(1);
-		}
-
-		char i;
-		int j = 0;
-		while((i = fgetc(file)) != EOF){
-			if (j >= 512 || i == feof(file)){
-				pkt = DATA(newsockfd, len, block_number, byte_stream, cli_sock, cli_len);
-				memset(byte_stream, 0, 512);
-			} else {		
-				byte_stream[j] = i;
-				j++;
-			}
-		}
-
-		if (pkt < 0) {
-			perror("server: DATA()");
-			exit(1);
-		}
-
-		pkt = ACK(newsockfd, block_number, cli_sock, cli_len);
-
-		if (pkt < 0) {
-			printf("%s.%u: transfer killed\n",
-				inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-			exit(1);
-		}
-		block_number++; 
-	}
+	//Get file
+	char* filename;
+	strcpy(filename,buf+2);
 
 }
 
-
-void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_in *cli_sock, socklen_t *cli_len){
-//file is the bytestream of the file 
-	//starting our variables 
-	uint16_t block_number; block_number = 0; 
-	int countdown; 
-	int handle; handle = 1; 
-	int retries; retries = 0; 
-	int i; 
-	int state; 
-
-	//first, send an ACK that we got the WRQ and are going to start writing 
-	state = ACK(newsockfd, block_number, cli_sock, cli_len); 
-	if(state == 0){
-		ERROR(newsockfd, 0, len, cli_sock, cli_len); 
-		printf("%s.%u: transfer killed\n",
-			inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-		exit(1);
-	}
-}
-
-*/
 void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 	int childfd;
 	socklen_t child_len;
@@ -260,39 +108,13 @@ void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, c
 
 	printf("In child\n");
 
-	unsigned short int *opcode_ptr = (unsigned short int *) buf;
-	unsigned short int *err_ptr = (unsigned short int *) buf;
-	unsigned short int *data_ptr = (unsigned short int *) buf;
-
-
-    //Get file
-	char* filename;
-	strcpy(filename,buf+2);
-
-	// Get  mode
-	char* mode;
-	strcpy(mode, buf + 2 + strlen(filename) + 1);
-	if (strcasecmp(mode, "octet") != 0) {
-		printf("DEBUG: '%s' is not octet mode!\n", mode);
+	if (opcode == 1){
+		RRQ(childfd, &child_sock, buf, buf_size);
 	}
-     //Use lstat to implement this
-    //TA in office hours said we only need to care about filenames, not whole directories
-    // if(!fileExists(filename)) {
-    // 	printf("%s.%u: filename outside base directory\n",
-    // 		inet_ntoa(cli_sock->sin_addr), ntohs(cli_sock->sin_port));
-    // 	ERROR(newsockfd,0,len,cli_sock,cli_len);
-    // 	exit(1);
 
-    //  } // file not in directory 
-
-	FILE* file = fopen(filename,"r+");
-
-     // if (msg->opcode == 01){
-     // 	RRQ(file, newsockfd, msg, len, cli_sock, cli_len); 
-     // } else if(msg->opcode == 02){
-     // 	WRQ(file, newsockfd, msg, len, cli_sock, cli_len); 
-     // }
-	
+	if (opcode == 2){
+		WRQ(childfd, &child_sock, buf, buf_size);
+	}
 }
 
 int main(int argc, char const *argv[]){
@@ -351,7 +173,8 @@ int main(int argc, char const *argv[]){
 		char str[10];
 		sprintf(str, "%c", opcode);
 		printf("Opcode: %d\n", atoi(str));
-		if(atoi(str) == 1 || atoi(str) == 2){
+		opcode = atoi(str);
+		if(opcode == 1 || opcode == 2){
 			if(fork() == 0){
 				close(sockfd);
 				break;
