@@ -24,6 +24,23 @@
  * stat() function. It returns 1 if file exists at 
  * given path otherwise returns 0. Modified to use lstat instead
  */
+
+struct request{
+	uint16_t opcode;
+	uint8_t filename_mode[512];
+};
+
+struct data{
+	uint16_t opcode;
+	uint16_t block_num;
+	char data[512];
+};
+
+struct ack{
+	uint16_t opcode;
+	uint16_t block_num;
+};
+
 int fileExists(const char *path)
 {
 	struct stat stats;
@@ -48,83 +65,93 @@ void sig_child(int signo){
 	return;
 }
 
-void RRQ(int childfd, struct sockaddr_in *child_sock, char buf[], unsigned int buf_size, struct sockaddr_in *server_sock){
-	printf("%s",buf);
+void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int buf_size, struct sockaddr_in *server_sock){
+	printf("Buffer: %u\n",(unsigned int)buf);
 	printf("In rrq\n");
-	int fd, block_num, len;
+	FILE * fd;
+	int block_num, len;
+	socklen_t sockaddr_len = sizeof(server_sock);
 	char childBuf[516];
 	unsigned short int *buf_ptr = (unsigned short int*) childBuf;
+	struct data data_pkt;
     //Get file
 	char* filename = buf+2;
 	ssize_t val;
+	printf("Buffer: %u\n",(unsigned int)buf);
 	int timeout = 0;
-	printf("filename: %s", filename);
+	printf("filename: %s\n", filename);
 	//open file
-	if((fd = open(filename, O_RDONLY)) < 0){
-		printf("%d\n", fd);
+	if((fd = fopen(filename, "r")) == NULL){
+		printf("go to open\n");
         //file not found, add error to send buffer
 		*buf_ptr = htons(5);
 		*(buf_ptr + 1) = htons(1);
 		*(childBuf + 4) = 0;
 		printf("FILE NOT FOUND\n");
-		file_send:
-		val = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) &server_sock, sizeof(server_sock));
+		val = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) server_sock, sockaddr_len);
         //error sending
 		if(val < 0){
-			if(errno == EINTR){
-				goto file_send;
-			}
 			perror("sendto error");
 			exit(-1);
 		}
 		exit(-1);
 	}
+	printf("after error\n");
 	
 	block_num = 1;
-	while((len = read(childfd, buf_ptr+2 , 512)) != 0){
-		*buf_ptr = htons(3);
-		*(buf_ptr + 1) = htons(block_num);
+	while((len = fread(childBuf, 1, 512,fd)) != 0){
+		printf("CHild buffer: %s\n", childBuf);
+		block_num++;
 		send_rrq:
-		val = sendto(childfd,childBuf,len+4,0, (struct sockaddr *) &server_sock, sizeof(server_sock));
+		printf("%d\n", len);
+		data_pkt.opcode = htons(3);
+		data_pkt.block_num = htons(block_num);
+		printf("before memcpy: %s\n", childBuf);
+		memcpy(&data_pkt.data,&childBuf,len);
+		printf("after memcpy: %s\n", childBuf);
+		printf("%lu\n", strlen(data_pkt.data));
+
+		val = sendto(childfd,&data_pkt,len+4,0, (struct sockaddr *) server_sock, sockaddr_len);
+		printf("%s\n", childBuf);
 		if (val < 0){
 			if (errno == EINTR){
 				goto send_rrq;
 			}
 			perror("read packet failed to send");
-			exit(-1);
 		}
-	}
+		retrieve_ack:
 
-	retrieve_ack:
+		val = recvfrom(childfd, childBuf, sizeof(childBuf), 0, (struct sockaddr *) server_sock, &buf_size);
 
-	val = recvfrom(childfd, childBuf, sizeof(childBuf), 0, (struct sockaddr *) server_sock, &buf_size);
-
-	if (val < 0) {
-		if (errno == EINTR){
-			if (timeout < 10){
-				goto send_rrq;
-			} else {
-				printf("Timed out\n");
-				close(childfd);
+		if (val < 0) {
+			if (errno == EINTR){
+				if (timeout < 10){
+					timeout++;
+					goto send_rrq;
+				} else {
+					printf("Timed out\n");
+					close(childfd);
+					exit(-1);
+				}
+				perror("ERROR: recvfrom");
 				exit(-1);
 			}
-			perror("ERROR: recvfrom");
-			exit(-1);
+		} else {
+			unsigned short int *temp_ptr = (unsigned short int*) childBuf;
+			if(*temp_ptr == htons(4) && *(temp_ptr + 1) == htons(block_num)){
+				block_num++;
+			} else {
+				printf("Unexpected packet, exiting\n");
+				exit(-1);
+			}
 		}
-	} else {
-		char temp[4];
-		unsigned short int *temp_ptr = (unsigned short int*) temp;
-        if(*temp_ptr == htons(4) && *(temp_ptr + 1) == htons(block_num)){
-            block_num++;
-        } else {
-            printf("Unexpected packet, exiting\n");
-            exit(-1);
-        }
 	}
+
+	printf("after loop\n");
 	printf("success\n");
 	close(childfd);
 }     
-
+/*
 void WRQ(int childfd, struct sockaddr_in *child_sock, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 
 	//Get file
@@ -191,7 +218,7 @@ void WRQ(int childfd, struct sockaddr_in *child_sock, struct sockaddr_in *server
 	close(kid_fd); 
 	close(childfd);
 }
-
+*/
 void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 	int childfd;
 	socklen_t child_len;
@@ -201,13 +228,13 @@ void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, c
 	child_len = sizeof(child_sock);
 
 	// Creating socket file descriptor 
-	if ( (childfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+	if ( (childfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0 ) { 
 		perror("child creation failed"); 
 		exit(EXIT_FAILURE); 
 	} 
 
 	memset(&child_sock, 0, sizeof child_sock);
-	child_sock.sin_family = AF_INET;
+	child_sock.sin_family = PF_INET;
 	child_sock.sin_addr.s_addr = htonl(INADDR_ANY);
 	child_sock.sin_port = htons(0);
 
@@ -217,20 +244,20 @@ void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, c
 		exit(-1);
 	}
 
-	if (bind(childfd, (struct sockaddr*) &child_sock, child_len) < 0) {
-		perror("failed to bind");
-		exit(-1);
-	}
+	// if (bind(childfd, (struct sockaddr*) &child_sock, child_len) < 0) {
+	// 	perror("failed to bind");
+	// 	exit(-1);
+	// }
 
 	//printf("In child\n");
 
 	if (opcode == 1){
-		printf("pre read\nbuffer: %s", buf);
+		//printf("pre read\nbuffer: %s", buf);
 		RRQ(childfd, &child_sock, buf, buf_size, server_sock);
 	}
 
 	if (opcode == 2){
-		WRQ(childfd, &child_sock, &server_sock, buf, buf_size);
+		//WRQ(childfd, &child_sock, &server_sock, buf, buf_size);
 	}
 }
 
@@ -241,20 +268,20 @@ int main(int argc, char const *argv[]){
 
 	char buf[BUFSIZE]; /* message buf */
 	unsigned short int opcode;
-	ssize_t len;
+	ssize_t len, val;
 
 	server_len = sizeof(server_sock);
 
 	// Creating socket file descriptor 
-	if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+	if ( (sockfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0 ) { 
 		perror("socket creation failed"); 
 		exit(EXIT_FAILURE); 
 	} 
 
 	memset(&server_sock, 0, server_len);
-	server_sock.sin_family = AF_INET;
+	server_sock.sin_family = PF_INET;
 	server_sock.sin_addr.s_addr = INADDR_ANY;
-	server_sock.sin_port = htons(6500); //TODO: set to 0 when all done
+	server_sock.sin_port = htons(0); //TODO: set to 0 when all done
 
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -274,7 +301,8 @@ int main(int argc, char const *argv[]){
 	while (1) {
 		receive:
 		len = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *) &server_sock, &server_len);
-		printf("Len: %s\n", buf);
+		//buf[len] = '\0';
+		printf("Buf: %s\n Len: %d\n", buf,(int) len);
 		if (len < 0) {
 			if (errno == EINTR) {
 				goto receive;
@@ -284,14 +312,30 @@ int main(int argc, char const *argv[]){
 		}
 
  		/* check the opcode */
-		unsigned short int * opcode_ptr = (unsigned short int *) buf;
+		unsigned short int * opcode_ptr;
+		opcode_ptr = (unsigned short int *) buf;
 		opcode = ntohs(*opcode_ptr);
-		char op_char = opcode;
-		char str[10];
-		sprintf(str, "%c", opcode);
-		printf("Opcode: %d\n", atoi(str));
-		opcode = atoi(str);
-		if(opcode == 1 || opcode == 2){
+		//printf("opcode: %d\n", opcode);
+		// char op_char = opcode;
+		// char str[10];
+		// sprintf(str, "%c", opcode);
+		// printf("Opcode: %d\n", atoi(str));
+		// opcode = atoi(str);
+		if(opcode != 01 && opcode != 02) {
+            /* Illegal TFTP Operation */
+			*opcode_ptr = htons(5);
+			*(opcode_ptr + 1) = htons(4);
+			*(buf + 4) = 0;
+			intr_send:
+			val = sendto(sockfd, buf, 5, 0,
+				(struct sockaddr *)&server_sock, server_len);
+			if(val < 0) {
+				if(errno == EINTR) goto intr_send;
+				perror("sendto");
+				exit(-1);
+			}
+		} else {
+			printf("I fork\n");
 			if(fork() == 0){
 				close(sockfd);
 				break;
