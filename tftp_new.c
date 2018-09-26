@@ -228,7 +228,7 @@ void WRQ(FILE* file, int newsockfd, message *msg, ssize_t len, struct sockaddr_i
 }
 
 */
-void chld_handler(unsigned short int opcode, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
+void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 	int childfd;
 	socklen_t child_len;
 	struct sockaddr_in child_sock;
@@ -261,15 +261,20 @@ void chld_handler(unsigned short int opcode, struct sockaddr_in *server_sock, ch
 	printf("In child\n");
 
 	unsigned short int *opcode_ptr = (unsigned short int *) buf;
-    unsigned short int *err_ptr = (unsigned short int *) buf;
-    unsigned short int *data_ptr = (unsigned short int *) buf;
+	unsigned short int *err_ptr = (unsigned short int *) buf;
+	unsigned short int *data_ptr = (unsigned short int *) buf;
 
 
     //Get file
 	char* filename;
 	strcpy(filename,buf+2);
-	
 
+	// Get  mode
+	char* mode;
+	strcpy(mode, buf + 2 + strlen(filename) + 1);
+	if (strcasecmp(mode, "octet") != 0) {
+		printf("DEBUG: '%s' is not octet mode!\n", mode);
+	}
      //Use lstat to implement this
     //TA in office hours said we only need to care about filenames, not whole directories
     // if(!fileExists(filename)) {
@@ -280,14 +285,15 @@ void chld_handler(unsigned short int opcode, struct sockaddr_in *server_sock, ch
 
     //  } // file not in directory 
 
-     FILE* file = fopen(filename,"r+");
+	FILE* file = fopen(filename,"r+");
 
      // if (msg->opcode == 01){
      // 	RRQ(file, newsockfd, msg, len, cli_sock, cli_len); 
      // } else if(msg->opcode == 02){
      // 	WRQ(file, newsockfd, msg, len, cli_sock, cli_len); 
      // }
- }
+	
+}
 
 int main(int argc, char const *argv[]){
 	int sockfd;
@@ -345,8 +351,7 @@ int main(int argc, char const *argv[]){
 		char str[10];
 		sprintf(str, "%c", opcode);
 		printf("Opcode: %d\n", atoi(str));
-		if(atoi(str) == 1 || opcode == 2){
-			printf("hi\n");
+		if(atoi(str) == 1 || atoi(str) == 2){
 			if(fork() == 0){
 				close(sockfd);
 				break;
@@ -358,8 +363,7 @@ int main(int argc, char const *argv[]){
         	}
         }
     }
-    printf("handle\n");
-    chld_handler(opcode,&server_sock, buf, BUFSIZE);
+    child_handler(opcode,&server_sock, buf, BUFSIZE);
 
     return 0;
 }
