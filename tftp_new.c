@@ -71,6 +71,7 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 	FILE * fd;
 	int block_num, len;
 	socklen_t sockaddr_len = sizeof(server_sock);
+	socklen_t child_sock_len = sizeof(child_sock);
 	char childBuf[516];
 	unsigned short int *buf_ptr = (unsigned short int*) childBuf;
 	struct data data_pkt;
@@ -107,12 +108,16 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 		data_pkt.opcode = htons(3);
 		data_pkt.block_num = htons(block_num);
 		printf("before memcpy: %s\n", childBuf);
-		memcpy(&data_pkt.data,&childBuf,len);
+		memcpy(data_pkt.data,childBuf,len);
 		printf("after memcpy: %s\n", childBuf);
-		printf("%lu\n", strlen(data_pkt.data));
+		printf("data_pkt length: %lu\n", strlen(data_pkt.data));
+		printf("childfd is: %d\n", childfd);
+		printf("Data packet: %s\n", data_pkt.data); 
+		printf("len is: %d\n", len);
 
-		val = sendto(childfd,&data_pkt,len+4,0, (struct sockaddr *) server_sock, sockaddr_len);
-		printf("%s\n", childBuf);
+		val = sendto(childfd, &data_pkt, len+4, 0, (struct sockaddr *) child_sock, child_sock_len);
+		printf("Child buf before sending: %s\n", childBuf);
+		printf("VAL IS: %d\n", val);
 		if (val < 0){
 			if (errno == EINTR){
 				goto send_rrq;
