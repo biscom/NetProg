@@ -114,8 +114,8 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 		printf("childfd is: %d\n", childfd);
 		printf("Data packet: %s\n", data_pkt.data); 
 		printf("len is: %d\n", len);
-
-		val = sendto(childfd, &data_pkt, len+4, 0, (struct sockaddr *) child_sock, child_sock_len);
+		printf("ABOUT TO SEND VAL: %d\n", ntohs(server_sock->sin_port));
+		val = sendto(childfd, &data_pkt, sizeof(data_pkt), 0, (struct sockaddr *) server_sock, sockaddr_len);
 		printf("Child buf before sending: %s\n", childBuf);
 		printf("VAL IS: %d\n", val);
 		if (val < 0){
@@ -258,7 +258,8 @@ void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, c
 
 	if (opcode == 1){
 		//printf("pre read\nbuffer: %s", buf);
-		RRQ(childfd, &child_sock, buf, buf_size, server_sock);
+		printf("ABOUT TO ENTER RRQ: %d\n", ntohs(server_sock->sin_port));
+		RRQ(childfd, &child_sock, buf, buf_size, &server_sock);
 	}
 
 	if (opcode == 2){
