@@ -89,7 +89,7 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 		*(buf_ptr + 1) = htons(1);
 		*(childBuf + 4) = 0;
 		printf("FILE NOT FOUND\n");
-		val = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) &server_sock, sockaddr_len);
+		val = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) server_sock, sockaddr_len);
         //error sending
 		if(val < 0){
 			perror("sendto error");
@@ -115,9 +115,9 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 		printf("Data packet: %s\n", data_pkt.data); 
 		printf("len is: %d\n", len);
 		printf("ABOUT TO SEND VAL: %d\n", ntohs(server_sock->sin_port));
-		val = sendto(childfd, childBuf, len+4, 0, (struct sockaddr *) server_sock, sockaddr_len);
+		val = sendto(childfd, &data_pkt, sizeof(data_pkt), 0, (struct sockaddr *) server_sock, sockaddr_len);
 		printf("Child buf before sending: %s\n", childBuf);
-		printf("VAL IS: %zd\n", val);
+		printf("VAL IS: %d\n", val);
 		if (val < 0){
 			if (errno == EINTR){
 				goto send_rrq;
@@ -126,7 +126,7 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 		}
 		retrieve_ack:
 
-		val = recvfrom(childfd, childBuf, sizeof(childBuf), 0, (struct sockaddr *) &server_sock, sockaddr_len);
+		val = recvfrom(childfd, childBuf, sizeof(childBuf), 0, (struct sockaddr *) server_sock, &buf_size);
 
 		if (val < 0) {
 			if (errno == EINTR){
@@ -156,7 +156,7 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 	printf("success\n");
 	close(childfd);
 }     
-
+/*
 void WRQ(int childfd, struct sockaddr_in *child_sock, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 
 	//Get file
@@ -178,7 +178,7 @@ void WRQ(int childfd, struct sockaddr_in *child_sock, struct sockaddr_in *server
 		*(childBuf + 4) = 0;
 		printf("FILE EXISTS\n");
 		file_exists:
-		len = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) &server_sock, sizeof(buf_size));
+		len = sendto(childfd, childBuf, 5, 0, (struct sockaddr *) &child_sock, sizeof(child_sock));
         //error sending
 		if(len < 0){
 			if(errno == EINTR){
@@ -192,7 +192,7 @@ void WRQ(int childfd, struct sockaddr_in *child_sock, struct sockaddr_in *server
 	//open the file since it does not exist 
 	memset(&childBuf, 0, sizeof(childBuf));
 	FILE *fptr = fopen(filename, "w"); 
-	int kid_fd = fileno(fptr);
+	int kid_fd = fileno(*fptr);
 	//send ACK that it's about to happen! 
 	*opcode_ptr = htons(3);
 	*(opcode_ptr + 1) = htons(0);
@@ -209,9 +209,9 @@ void WRQ(int childfd, struct sockaddr_in *child_sock, struct sockaddr_in *server
 			printf("ERROR: DID NOT RECIEVE DATA PACKET\n");
 			continue; 
 		}
-		 
-		childBuf[len] = '\0';
-		write(kid_fd, childBuf + 4, len-4); 
+		//TODO: check it's the right block_num / INTEGRATE BLOCK SIZES WHOOPS 
+		buffer[len] = '\0'
+		write(kid_fd, childBuf + 4, n-4); 
 		if(len < 516){
 			break;
 		}
@@ -223,6 +223,7 @@ void WRQ(int childfd, struct sockaddr_in *child_sock, struct sockaddr_in *server
 	close(kid_fd); 
 	close(childfd);
 }
+*/
 void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 	int childfd;
 	socklen_t child_len;
@@ -258,7 +259,7 @@ void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, c
 	if (opcode == 1){
 		//printf("pre read\nbuffer: %s", buf);
 		printf("ABOUT TO ENTER RRQ: %d\n", ntohs(server_sock->sin_port));
-		RRQ(childfd, &child_sock, buf, buf_size, server_sock);
+		RRQ(childfd, &child_sock, buf, buf_size, &server_sock);
 	}
 
 	if (opcode == 2){
@@ -270,7 +271,7 @@ int main(int argc, char const *argv[]){
 	int sockfd;
 	socklen_t server_len;
 	struct sockaddr_in server_sock;
-	int pid;
+
 	char buf[BUFSIZE]; /* message buf */
 	unsigned short int opcode;
 	ssize_t len, val;
@@ -286,7 +287,7 @@ int main(int argc, char const *argv[]){
 	memset(&server_sock, 0, server_len);
 	server_sock.sin_family = PF_INET;
 	server_sock.sin_addr.s_addr = INADDR_ANY;
-	server_sock.sin_port = htons(0);
+	server_sock.sin_port = htons(0); //TODO: set to 0 when all done
 
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -302,7 +303,7 @@ int main(int argc, char const *argv[]){
 	getsockname(sockfd, (struct sockaddr *) &server_sock, &server_len);
 	printf("%d\n", ntohs(server_sock.sin_port));
 
-	signal(SIGCHLD, sig_child); 
+	//signal(SIGCHLD, sig_child); 
 	while (1) {
 		receive:
 		len = recvfrom(sockfd, buf, BUFSIZE, 0, (struct sockaddr *) &server_sock, &server_len);
@@ -350,11 +351,9 @@ int main(int argc, char const *argv[]){
         	else { //parent
 
         	}
-
-        	child_handler(opcode,&server_sock, buf, BUFSIZE);
         }
-
     }
+    child_handler(opcode,&server_sock, buf, BUFSIZE);
 
     return 0;
 }
