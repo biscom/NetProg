@@ -1,2 +1,2 @@
 tftp_make:
-	gcc -o tftp.out tftp_new.c
+	gcc -o tftp.out tftp.c
