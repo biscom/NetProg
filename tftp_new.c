@@ -65,11 +65,43 @@ void sig_child(int signo){
 	return;
 }
 
-void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int buf_size, struct sockaddr_in *server_sock){
+void RRQ(struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
+
+	int childfd;
+	socklen_t child_len;
+	struct sockaddr_in child_sock;
+	ssize_t len;
+
+	child_len = sizeof(child_sock);
+
+	// Creating socket file descriptor 
+	if ( (childfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+		perror("child creation failed"); 
+		exit(EXIT_FAILURE); 
+	} 
+
+	memset(&child_sock, 0, sizeof child_sock);
+	child_sock.sin_family = PF_INET;
+	child_sock.sin_addr.s_addr = htonl(INADDR_ANY);
+	child_sock.sin_port = htons(0);
+
+
+	if ((childfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+		perror("socket error");
+		exit(-1);
+	}
+
+	if (bind(childfd, (struct sockaddr*) &child_sock, child_len) < 0) {
+		perror("failed to bind");
+		exit(-1);
+	}
+
+
+
 	printf("Buffer: %u\n",(unsigned int)buf);
 	printf("In rrq\n");
 	FILE * fd;
-	int block_num, len;
+	int block_num;
 	socklen_t sockaddr_len = sizeof(server_sock);
 	socklen_t child_sock_len = sizeof(child_sock);
 	char childBuf[516];
@@ -104,7 +136,7 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 		printf("CHild buffer: %s\n", childBuf);
 		block_num++;
 		send_rrq:
-		printf("%d\n", len);
+		//printf("%d\n", len);
 		data_pkt.opcode = htons(3);
 		data_pkt.block_num = htons(block_num);
 		printf("before memcpy: %s\n", childBuf);
@@ -113,11 +145,11 @@ void RRQ(int childfd, struct sockaddr_in *child_sock, char *buf, unsigned int bu
 		printf("data_pkt length: %lu\n", strlen(data_pkt.data));
 		printf("childfd is: %d\n", childfd);
 		printf("Data packet: %s\n", data_pkt.data); 
-		printf("len is: %d\n", len);
+		//printf("len is: %d\n", len);
 		printf("ABOUT TO SEND VAL: %d\n", ntohs(server_sock->sin_port));
-		val = sendto(childfd, &data_pkt, sizeof(data_pkt), 0, (struct sockaddr *) server_sock, sockaddr_len);
+		val = sendto(childfd, childBuf, len+4, 0, (struct sockaddr *) server_sock, child_sock_len);
 		printf("Child buf before sending: %s\n", childBuf);
-		printf("VAL IS: %d\n", val);
+		printf("VAL IS: %zd\n", val);
 		if (val < 0){
 			if (errno == EINTR){
 				goto send_rrq;
@@ -223,7 +255,7 @@ void WRQ(int childfd, struct sockaddr_in *child_sock, struct sockaddr_in *server
 	close(kid_fd); 
 	close(childfd);
 }
-*/
+
 void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, char *buf, unsigned int buf_size){
 	int childfd;
 	socklen_t child_len;
@@ -259,14 +291,14 @@ void child_handler(unsigned short int opcode, struct sockaddr_in *server_sock, c
 	if (opcode == 1){
 		//printf("pre read\nbuffer: %s", buf);
 		printf("ABOUT TO ENTER RRQ: %d\n", ntohs(server_sock->sin_port));
-		RRQ(childfd, &child_sock, buf, buf_size, &server_sock);
+		RRQ(childfd, &child_sock, buf, buf_size, server_sock);
 	}
 
 	if (opcode == 2){
 		//WRQ(childfd, &child_sock, &server_sock, buf, buf_size);
 	}
 }
-
+*/
 int main(int argc, char const *argv[]){
 	int sockfd;
 	socklen_t server_len;
@@ -353,7 +385,7 @@ int main(int argc, char const *argv[]){
         	}
         }
     }
-    child_handler(opcode,&server_sock, buf, BUFSIZE);
+    RRQ(&server_sock, buf, BUFSIZE);
 
     return 0;
 }
